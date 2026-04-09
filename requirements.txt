@@ -1,0 +1,18 @@
+Flask>=3.0
+flask-cors>=4.0
+opencv-python-headless>=4.8
+mediapipe>=0.10.30
+numpy>=1.24
+pandas>=2.0
+werkzeug>=3.0
+gunicorn>=21.0
+google-cloud-storage>=2.14
+protobuf>=3.20
+matplotlib>=3.8.0
+seaborn>=0.13.0
+scipy>=1.11.0
+# API specific requirements
+firebase-admin>=6.4.0
+PyJWT>=2.8.0
+bcrypt>=4.2.0
+python-dotenv>=1.0.0

@@ -1,0 +1,170 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isSrPhysio() {
+      return isAuthenticated() && getUserRole() == 'SR_PHYSIO';
+    }
+    
+    function isPhysio() {
+      return isAuthenticated() && getUserRole() in ['SR_PHYSIO', 'JR_PHYSIO'];
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'ADMIN';
+    }
+    
+    // ==============================================
+    // Task 2: Core Entities
+    // ==============================================
+    
+    // Organizations - Admin only for write
+    match /organizations/{orgId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Users - Can read own profile, admins can read/write all
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Athletes - Physios and coaches can read, admins can write
+    match /athletes/{athleteId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isPhysio();
+    }
+    
+    // ==============================================
+    // Task 3: Gatekeeper Taxonomy
+    // ==============================================
+    
+    // Master Taxonomy - Read all, only SR_PHYSIO can verify
+    match /masterTaxonomy/{tagId} {
+      allow read: if true; // Public for demo
+      allow create: if isAuthenticated();
+      allow update: if isSrPhysio(); // Only SR_PHYSIO can verify tags
+      allow delete: if isSrPhysio();
+    }
+    
+    // Tag Suggestions - Anyone can suggest, SR_PHYSIO approves
+    match /tagSuggestions/{suggestionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isSrPhysio(); // Only SR_PHYSIO can approve/reject
+      allow delete: if isSrPhysio();
+    }
+    
+    // ==============================================
+    // Task 4: Assessments & Workflow
+    // ==============================================
+    
+    // Assessments - Physios and interns can create/update
+    match /assessments/{assessmentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && getUserRole() in ['INTERN', 'JR_PHYSIO', 'SR_PHYSIO'];
+      allow update: if isAuthenticated() && getUserRole() in ['INTERN', 'JR_PHYSIO', 'SR_PHYSIO'];
+      allow delete: if isSrPhysio();
+      
+      // Workflow config subcollection
+      match /workflowConfig/{configId} {
+        allow read: if isAuthenticated();
+        allow write: if isPhysio();
+      }
+    }
+    
+    // ==============================================
+    // Task 5: Movement Data
+    // ==============================================
+    
+    // Movement Data - System creates, physios can read
+    match /movementData/{movementId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // Allow system/AI to write
+    }
+    
+    // ==============================================
+    // Task 6: Reviews & Prescriptions
+    // ==============================================
+    
+    // Reviews - Physios can create/update
+    match /reviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isPhysio();
+      allow update: if isPhysio();
+      allow delete: if isSrPhysio();
+    }
+    
+    // Prescriptions - GATEKEEPER: Can't publish without SR_PHYSIO approval
+    match /prescriptions/{prescriptionId} {
+      allow read: if isAuthenticated();
+      allow create: if isPhysio();
+      allow update: if isPhysio() && (
+        // If trying to publish, must have SR_PHYSIO finalization
+        request.resource.data.status != 'PUBLISHED' ||
+        (request.resource.data.finalizedBySrPhysio != null && isSrPhysio())
+      );
+      allow delete: if isSrPhysio();
+    }
+    
+    // ==============================================
+    // Task 7: Daily Tracking
+    // ==============================================
+    
+    // Daily Logs - Athletes write their own, physios can read all
+    match /dailyLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+    }
+    
+    // Compliance Tracking - Interns and physios can update
+    match /complianceTracking/{complianceId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && getUserRole() in ['INTERN', 'JR_PHYSIO', 'SR_PHYSIO'];
+    }
+    
+    // ==============================================
+    // Task 8: Analytics Cache (Computed Views)
+    // ==============================================
+    
+    // Analytics Cache - Read-only for users, system writes
+    match /analyticsCache/{cacheId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only Cloud Functions can write
+    }
+    
+    // Anonymized Research Data - Read-only
+    match /anonymizedResearchData/{recordId} {
+      allow read: if isAuthenticated() && (isSrPhysio() || isAdmin());
+      allow write: if false; // Only Cloud Functions can write
+    }
+    
+    // ==============================================
+    // Video Service (from existing setup)
+    // ==============================================
+    
+    // Videos - For demo, allow authenticated writes
+    match /videos/{videoId} {
+      allow read: if true; // Demo: public read
+      allow write: if isAuthenticated();
+    }
+    
+    // Analysis results
+    match /analysis/{analysisId} {
+      allow read: if true; // Demo: public read
+      allow write: if isAuthenticated();
+    }
+  }
+}

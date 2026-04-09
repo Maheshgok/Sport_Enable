@@ -1,0 +1,13 @@
+Flask==3.0.0
+flask-cors==4.0.0
+opencv-python-headless==4.8.0.76
+mediapipe==0.10.33
+numpy==1.24.3
+pandas==2.0.3
+werkzeug==3.0.1
+gunicorn==21.2.0
+google-cloud-storage==2.14.0
+firebase-admin==6.4.0
+PyJWT==2.8.0
+bcrypt==4.2.1
+python-dotenv==1.0.0
