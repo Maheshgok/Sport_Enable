@@ -2,12 +2,16 @@ import { useState } from 'react'
 import Card from '../../components/common/Card'
 import CaseList from './CaseList'
 import CaseDetail from './CaseDetail'
+import ProtocolBuilder from './ProtocolBuilder'
+import AssessmentPrompts from './AssessmentPrompts'
+import RequestManagement from './RequestManagement'
 import { athleteCases, caseAssessments } from '../../data/mockPhysioData'
 
 export default function PhysiotherapistDashboard({ currentView, setCurrentView }) {
+  const [activeTab, setActiveTab] = useState('cases') // 'cases', 'protocols', or 'prompts'
   const [internalView, setInternalView] = useState('list') // 'list' or 'detail'
   const [selectedCaseId, setSelectedCaseId] = useState(null)
-  
+
   // Local state for case updates (simulating backend updates)
   const [cases, setCases] = useState(athleteCases)
   const [assessments, setAssessments] = useState(caseAssessments)
@@ -100,19 +104,74 @@ export default function PhysiotherapistDashboard({ currentView, setCurrentView }
   // Cases view
   if (currentView === 'cases') {
     return (
-      <div>
-        {internalView === 'list' ? (
-          <CaseList 
-            cases={cases} 
-            onSelectCase={handleSelectCase}
-          />
+      <div className="space-y-6">
+        {/* Tabs */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('cases')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'cases'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Athlete Cases
+            </button>
+            <button
+              onClick={() => setActiveTab('prompts')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'prompts'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Assessment Library
+            </button>
+            <button
+              onClick={() => setActiveTab('protocols')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'protocols'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Custom Protocols
+            </button>
+            <button
+              onClick={() => setActiveTab('requests')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'requests'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📝 Requests
+            </button>
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'cases' ? (
+          internalView === 'list' ? (
+            <CaseList
+              cases={cases}
+              onSelectCase={handleSelectCase}
+            />
+          ) : (
+            <CaseDetail
+              athleteCase={selectedCase}
+              assessment={selectedAssessment}
+              onBack={handleBackToList}
+              onUpdate={handleUpdateCase}
+            />
+          )
+        ) : activeTab === 'prompts' ? (
+          <AssessmentPrompts currentUser={null} />
+        ) : activeTab === 'requests' ? (
+          <RequestManagement />
         ) : (
-          <CaseDetail
-            athleteCase={selectedCase}
-            assessment={selectedAssessment}
-            onBack={handleBackToList}
-            onUpdate={handleUpdateCase}
-          />
+          <ProtocolBuilder currentUser={null} />
         )}
       </div>
     )

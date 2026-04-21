@@ -609,3 +609,331 @@ def check_existing_relationship(user1_id, user2_id, relationship_type):
     except Exception as e:
         print(f"Error checking existing relationship: {e}")
         return False
+
+# ============================================================================
+# REQUEST SYSTEM FUNCTIONS (Exercise & Baseline Requests)
+# ============================================================================
+
+def create_exercise_request(requested_by, exercise_data):
+    """
+    Create a new exercise request from a physiotherapist
+    
+    Args:
+        requested_by: User ID of the physiotherapist
+        exercise_data: Dict containing exercise details
+    
+    Returns:
+        Request document data with ID
+    """
+    try:
+        requester = get_user_by_id(requested_by)
+        if not requester:
+            raise ValueError("Requester not found")
+        
+        request_data = {
+            'requestedBy': requested_by,
+            'requestedByName': f"{requester['firstName']} {requester['lastName']}",
+            'requestedByEmail': requester['email'],
+            
+            # Exercise details
+            'exerciseName': exercise_data['exerciseName'],
+            'description': exercise_data.get('description', ''),
+            'category': exercise_data.get('category', 'strength'),
+            'difficultyLevel': exercise_data.get('difficultyLevel', 'intermediate'),
+            
+            'targetMuscles': exercise_data.get('targetMuscles', []),
+            'targetJoints': exercise_data.get('targetJoints', []),
+            'injuryTypes': exercise_data.get('injuryTypes', []),
+            
+            'instructions': exercise_data.get('instructions', ''),
+            'precautions': exercise_data.get('precautions', ''),
+            
+            'durationMinutes': exercise_data.get('durationMinutes', 10),
+            'equipmentNeeded': exercise_data.get('equipmentNeeded', []),
+            
+            # Media (optional)
+            'videoUrl': exercise_data.get('videoUrl', ''),
+            'thumbnailUrl': exercise_data.get('thumbnailUrl', ''),
+            'instructionImages': exercise_data.get('instructionImages', []),
+            
+            # Justification
+            'reason': exercise_data.get('reason', ''),
+            'useCase': exercise_data.get('useCase', ''),
+            
+            # Status
+            'status': 'pending',
+            'reviewedBy': None,
+            'reviewedAt': None,
+            'reviewNotes': '',
+            'approvedExerciseId': None,
+            
+            # Timestamps
+            'createdAt': firestore.SERVER_TIMESTAMP,
+            'updatedAt': firestore.SERVER_TIMESTAMP
+        }
+        
+        # Create document
+        doc_ref = db.collection('exerciseRequests').document()
+        doc_ref.set(request_data)
+        
+        request_data['requestId'] = doc_ref.id
+        return request_data
+    except Exception as e:
+        print(f"Error creating exercise request: {e}")
+        raise
+
+def create_baseline_request(requested_by, baseline_data):
+    """
+    Create a new baseline measurement request from a physiotherapist
+    
+    Args:
+        requested_by: User ID of the physiotherapist
+        baseline_data: Dict containing baseline measurement details
+    
+    Returns:
+        Request document data with ID
+    """
+    try:
+        requester = get_user_by_id(requested_by)
+        if not requester:
+            raise ValueError("Requester not found")
+        
+        request_data = {
+            'requestedBy': requested_by,
+            'requestedByName': f"{requester['firstName']} {requester['lastName']}",
+            'requestedByEmail': requester['email'],
+            
+            # Baseline details
+            'measurementName': baseline_data['measurementName'],
+            'measurementType': baseline_data.get('measurementType', 'functional'),
+            'unit': baseline_data.get('unit', ''),
+            
+            # Sport/condition context
+            'sportId': baseline_data.get('sportId'),
+            'sportName': baseline_data.get('sportName', ''),
+            'applicableConditions': baseline_data.get('applicableConditions', []),
+            
+            # Reference values
+            'normalRange': baseline_data.get('normalRange', {}),
+            
+            # Testing protocol
+            'testingProtocol': baseline_data.get('testingProtocol', ''),
+            'equipmentNeeded': baseline_data.get('equipmentNeeded', []),
+            
+            # Justification
+            'reason': baseline_data.get('reason', ''),
+            'researchReferences': baseline_data.get('researchReferences', []),
+            
+            # Status
+            'status': 'pending',
+            'reviewedBy': None,
+            'reviewedAt': None,
+            'reviewNotes': '',
+            
+            # Timestamps
+            'createdAt': firestore.SERVER_TIMESTAMP,
+            'updatedAt': firestore.SERVER_TIMESTAMP
+        }
+        
+        # Create document
+        doc_ref = db.collection('baselineRequests').document()
+        doc_ref.set(request_data)
+        
+        request_data['requestId'] = doc_ref.id
+        return request_data
+    except Exception as e:
+        print(f"Error creating baseline request: {e}")
+        raise
+
+def get_user_requests(user_id, request_type='all', status=None):
+    """
+    Get requests submitted by a specific user
+    
+    Args:
+        user_id: User ID
+        request_type: 'all', 'exercise', or 'baseline'
+        status: Filter by status (pending, approved, rejected) or None for all
+    
+    Returns:
+        Dict with exerciseRequests and baselineRequests arrays
+    """
+    try:
+        result = {
+            'exerciseRequests': [],
+            'baselineRequests': []
+        }
+        
+        # Get exercise requests
+        if request_type in ['all', 'exercise']:
+            exercise_query = db.collection('exerciseRequests')\
+                .where('requestedBy', '==', user_id)
+            
+            if status:
+                exercise_query = exercise_query.where('status', '==', status)
+            
+            exercise_query = exercise_query.order_by('createdAt', direction=firestore.Query.DESCENDING)
+            
+            for doc in exercise_query.stream():
+                request_data = doc.to_dict()
+                request_data['requestId'] = doc.id
+                result['exerciseRequests'].append(request_data)
+        
+        # Get baseline requests
+        if request_type in ['all', 'baseline']:
+            baseline_query = db.collection('baselineRequests')\
+                .where('requestedBy', '==', user_id)
+            
+            if status:
+                baseline_query = baseline_query.where('status', '==', status)
+            
+            baseline_query = baseline_query.order_by('createdAt', direction=firestore.Query.DESCENDING)
+            
+            for doc in baseline_query.stream():
+                request_data = doc.to_dict()
+                request_data['requestId'] = doc.id
+                result['baselineRequests'].append(request_data)
+        
+        return result
+    except Exception as e:
+        print(f"Error getting user requests: {e}")
+        return {'exerciseRequests': [], 'baselineRequests': []}
+
+def get_all_requests(request_type='all', status=None):
+    """
+    Get all requests (admin only)
+    
+    Args:
+        request_type: 'all', 'exercise', or 'baseline'
+        status: Filter by status or None for all
+    
+    Returns:
+        Dict with exerciseRequests and baselineRequests arrays
+    """
+    try:
+        result = {
+            'exerciseRequests': [],
+            'baselineRequests': []
+        }
+        
+        # Get exercise requests
+        if request_type in ['all', 'exercise']:
+            exercise_query = db.collection('exerciseRequests')
+            
+            if status:
+                exercise_query = exercise_query.where('status', '==', status)
+            
+            exercise_query = exercise_query.order_by('createdAt', direction=firestore.Query.DESCENDING)
+            
+            for doc in exercise_query.stream():
+                request_data = doc.to_dict()
+                request_data['requestId'] = doc.id
+                result['exerciseRequests'].append(request_data)
+        
+        # Get baseline requests
+        if request_type in ['all', 'baseline']:
+            baseline_query = db.collection('baselineRequests')
+            
+            if status:
+                baseline_query = baseline_query.where('status', '==', status)
+            
+            baseline_query = baseline_query.order_by('createdAt', direction=firestore.Query.DESCENDING)
+            
+            for doc in baseline_query.stream():
+                request_data = doc.to_dict()
+                request_data['requestId'] = doc.id
+                result['baselineRequests'].append(request_data)
+        
+        return result
+    except Exception as e:
+        print(f"Error getting all requests: {e}")
+        return {'exerciseRequests': [], 'baselineRequests': []}
+
+def update_exercise_request_status(request_id, status, reviewed_by, review_notes='', approved_exercise_id=None):
+    """
+    Update status of an exercise request (admin only)
+    
+    Args:
+        request_id: Request document ID
+        status: 'approved' or 'rejected'
+        reviewed_by: Admin user ID
+        review_notes: Admin's review notes
+        approved_exercise_id: If approved and added to library, the exercise ID
+    
+    Returns:
+        Boolean success
+    """
+    try:
+        doc_ref = db.collection('exerciseRequests').document(request_id)
+        
+        update_data = {
+            'status': status,
+            'reviewedBy': reviewed_by,
+            'reviewedAt': firestore.SERVER_TIMESTAMP,
+            'reviewNotes': review_notes,
+            'updatedAt': firestore.SERVER_TIMESTAMP
+        }
+        
+        if approved_exercise_id:
+            update_data['approvedExerciseId'] = approved_exercise_id
+        
+        doc_ref.update(update_data)
+        return True
+    except Exception as e:
+        print(f"Error updating exercise request status: {e}")
+        return False
+
+def update_baseline_request_status(request_id, status, reviewed_by, review_notes=''):
+    """
+    Update status of a baseline request (admin only)
+    
+    Args:
+        request_id: Request document ID
+        status: 'approved' or 'rejected'
+        reviewed_by: Admin user ID
+        review_notes: Admin's review notes
+    
+    Returns:
+        Boolean success
+    """
+    try:
+        doc_ref = db.collection('baselineRequests').document(request_id)
+        
+        update_data = {
+            'status': status,
+            'reviewedBy': reviewed_by,
+            'reviewedAt': firestore.SERVER_TIMESTAMP,
+            'reviewNotes': review_notes,
+            'updatedAt': firestore.SERVER_TIMESTAMP
+        }
+        
+        doc_ref.update(update_data)
+        return True
+    except Exception as e:
+        print(f"Error updating baseline request status: {e}")
+        return False
+
+def get_request_by_id(request_id, request_type):
+    """
+    Get a specific request by ID
+    
+    Args:
+        request_id: Request document ID
+        request_type: 'exercise' or 'baseline'
+    
+    Returns:
+        Request document data or None
+    """
+    try:
+        collection_name = 'exerciseRequests' if request_type == 'exercise' else 'baselineRequests'
+        doc_ref = db.collection(collection_name).document(request_id)
+        doc = doc_ref.get()
+        
+        if doc.exists:
+            request_data = doc.to_dict()
+            request_data['requestId'] = doc.id
+            return request_data
+        
+        return None
+    except Exception as e:
+        print(f"Error getting request by ID: {e}")
+        return None

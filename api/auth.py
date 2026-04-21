@@ -122,3 +122,182 @@ def require_auth(roles=None):
 def is_super_user(user_roles):
     """Check if user has super user/admin role"""
     return 'admin' in user_roles or 'super_user' in user_roles
+"""
+Firebase Authentication utilities for Moove API
+Handles Firebase Auth token verification and user management
+"""
+
+import firebase_admin
+from firebase_admin import auth, credentials, firestore
+from functools import wraps
+from flask import request, jsonify
+import os
+
+# Initialize Firebase Admin SDK
+if not firebase_admin._apps:
+    cred_path = os.environ.get('FIREBASE_CREDENTIALS_PATH', 'firebase-credentials.json')
+    if os.path.exists(cred_path):
+        cred = credentials.Certificate(cred_path)
+    else:
+        # For development - use environment variables
+        cred = credentials.Certificate({
+            "type": "service_account",
+            "project_id": os.environ.get('FIREBASE_PROJECT_ID', 'your-project-id'),
+            "private_key_id": os.environ.get('FIREBASE_PRIVATE_KEY_ID'),
+            "private_key": os.environ.get('FIREBASE_PRIVATE_KEY', '').replace('\\n', '\n'),
+            "client_email": os.environ.get('FIREBASE_CLIENT_EMAIL'),
+            "client_id": os.environ.get('FIREBASE_CLIENT_ID'),
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{os.environ.get('FIREBASE_CLIENT_EMAIL', '')}"
+        })
+
+    firebase_admin.initialize_app(cred)
+
+# Initialize Firestore
+db = firestore.client()
+
+def verify_firebase_token(token):
+    """
+    Verify Firebase Auth token
+
+    Args:
+        token: Firebase Auth ID token
+
+    Returns:
+        Decoded token payload or None if invalid
+    """
+    try:
+        decoded_token = auth.verify_id_token(token)
+        return decoded_token
+    except Exception as e:
+        print(f"Token verification failed: {e}")
+        return None
+
+def get_token_from_request():
+    """Extract Firebase token from Authorization header"""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return None
+
+    parts = auth_header.split()
+    if len(parts) != 2 or parts[0].lower() != 'bearer':
+        return None
+
+    return parts[1]
+
+def require_auth(roles=None):
+    """
+    Decorator to require Firebase authentication for routes
+
+    Args:
+        roles: List of allowed roles (None = any authenticated user)
+
+    Usage:
+        @app.route('/protected')
+        @require_auth()
+        def protected_route():
+            user = request.current_user
+            ...
+
+        @app.route('/admin')
+        @require_auth(roles=['admin'])
+        def admin_route():
+            ...
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            token = get_token_from_request()
+            if not token:
+                return jsonify({'error': 'Authorization token required'}), 401
+
+            decoded_token = verify_firebase_token(token)
+            if not decoded_token:
+                return jsonify({'error': 'Invalid or expired token'}), 401
+
+            # Get user profile from Firestore
+            user_id = decoded_token['uid']
+            user_doc = db.collection('users').document(user_id).get()
+
+            if not user_doc.exists:
+                return jsonify({'error': 'User profile not found'}), 404
+
+            user_data = user_doc.to_dict()
+            user_data['user_id'] = user_id
+
+            # Check roles if specified
+            if roles:
+                user_roles = user_data.get('roles', [])
+                if not any(role in user_roles for role in roles):
+                    return jsonify({'error': 'Insufficient permissions'}), 403
+
+            # Attach user to request
+            request.current_user = user_data
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def is_super_user(roles):
+    """Check if user has super user privileges"""
+    return 'admin' in roles or 'super_user' in roles
+
+def create_user_profile(user_id, user_data):
+    """
+    Create user profile in Firestore
+
+    Args:
+        user_id: Firebase Auth UID
+        user_data: User profile data
+    """
+    user_ref = db.collection('users').document(user_id)
+    user_ref.set({
+        'email': user_data.get('email'),
+        'first_name': user_data.get('first_name', ''),
+        'last_name': user_data.get('last_name', ''),
+        'roles': user_data.get('roles', []),
+        'phone': user_data.get('phone'),
+        'date_of_birth': user_data.get('date_of_birth'),
+        'gender': user_data.get('gender'),
+        'avatar': user_data.get('avatar'),
+        'organization_id': user_data.get('organization_id'),
+        'status': 'active',
+        'created_at': firestore.SERVER_TIMESTAMP,
+        'updated_at': firestore.SERVER_TIMESTAMP,
+        'last_login_at': firestore.SERVER_TIMESTAMP
+    })
+
+def update_user_profile(user_id, updates):
+    """
+    Update user profile in Firestore
+
+    Args:
+        user_id: Firebase Auth UID
+        updates: Fields to update
+    """
+    user_ref = db.collection('users').document(user_id)
+    updates['updated_at'] = firestore.SERVER_TIMESTAMP
+    user_ref.update(updates)
+
+def get_user_profile(user_id):
+    """
+    Get user profile from Firestore
+
+    Args:
+        user_id: Firebase Auth UID
+
+    Returns:
+        User profile dict or None
+    """
+    user_doc = db.collection('users').document(user_id).get()
+    if user_doc.exists:
+        data = user_doc.to_dict()
+        data['user_id'] = user_id
+        return data
+    return None
+
+def is_super_user(user_roles):
+    """Check if user has super user/admin role"""
+    return 'admin' in user_roles or 'super_user' in user_roles

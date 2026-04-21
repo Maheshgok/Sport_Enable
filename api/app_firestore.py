@@ -19,17 +19,34 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Add parent directory to path to import video_annotation_tool
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add current directory and parent directory to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, current_dir)
+sys.path.insert(0, parent_dir)
+
 from video_annotation_tool import VideoAnnotationTool
-# Import authentication module
-from auth import hash_password, verify_password, generate_token, require_auth, is_super_user
 
-# Import Firestore database module
-import firestore_db as db
+# Import API modules with error handling
+try:
+    import auth
+    import firestore_db as db
+    import relationships_firestore as relationships
+    import physio_requests
+except ImportError as e:
+    print(f"Import error: {e}")
+    # Try importing with api. prefix
+    from api import auth
+    from api import firestore_db as db
+    from api import relationships_firestore as relationships
+    from api import physio_requests
 
-# Import relationship management (Firestore version)
-import relationships_firestore as relationships
+# Import auth functions
+hash_password = auth.hash_password
+verify_password = auth.verify_password
+generate_token = auth.generate_token
+require_auth = auth.require_auth
+is_super_user = auth.is_super_user
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -365,9 +382,60 @@ def approve_request(request_id):
     return relationships.approve_request(request_id)
 
 @app.route('/api/admin/relationship-requests/<request_id>/reject', methods=['POST'])
-def reject_request(request_id):
+def reject_relationship_request(request_id):
     """Reject a relationship change request (admin only)"""
     return relationships.reject_request(request_id)
+
+# ============================================
+# REQUEST SYSTEM ENDPOINTS (Exercise & Baseline Requests)
+# ============================================
+
+# Physiotherapist endpoints
+@app.route('/api/physio/request-exercise', methods=['POST'])
+def submit_exercise_request():
+    """Submit new exercise request"""
+    return physio_requests.submit_exercise_request()
+
+@app.route('/api/physio/request-baseline', methods=['POST'])
+def submit_baseline_request():
+    """Submit new baseline measurement request"""
+    return physio_requests.submit_baseline_request()
+
+@app.route('/api/physio/my-requests', methods=['GET'])
+def get_my_requests():
+    """Get current user's requests"""
+    return physio_requests.get_my_requests()
+
+# Admin endpoints
+@app.route('/api/admin/requests/pending', methods=['GET'])
+def get_all_pending_requests():
+    """Get all pending requests (admin only)"""
+    return physio_requests.get_all_pending_requests()
+
+@app.route('/api/admin/requests', methods=['GET'])
+def get_all_requests_admin():
+    """Get all requests with filters (admin only)"""
+    return physio_requests.get_all_requests_admin()
+
+@app.route('/api/admin/requests/exercise/<request_id>/approve', methods=['POST'])
+def approve_exercise_request(request_id):
+    """Approve exercise request (admin only)"""
+    return physio_requests.approve_exercise_request(request_id)
+
+@app.route('/api/admin/requests/baseline/<request_id>/approve', methods=['POST'])
+def approve_baseline_request(request_id):
+    """Approve baseline request (admin only)"""
+    return physio_requests.approve_baseline_request(request_id)
+
+@app.route('/api/admin/requests/<request_id>/reject', methods=['POST'])
+def reject_admin_request(request_id):
+    """Reject a request (admin only)"""
+    return physio_requests.reject_request(request_id)
+
+@app.route('/api/requests/<request_id>', methods=['GET'])
+def get_request_details(request_id):
+    """Get request details"""
+    return physio_requests.get_request_details(request_id)
 
 # ============================================
 # VIDEO ANALYSIS ENDPOINTS (Existing functionality)
