@@ -53,3 +53,5 @@ __pycache__/
 temp/
 uploads/
 outputs/
+
+service-account-key.json
