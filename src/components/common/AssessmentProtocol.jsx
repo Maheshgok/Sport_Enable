@@ -234,13 +234,14 @@ export default function AssessmentProtocol() {
           {/* Upload Section */}
           <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
             <div className="text-3xl mb-3">📤</div>
-            <h4 className="font-medium text-gray-900 mb-2">Record Your Movement</h4>
+            <h4 className="font-medium text-gray-900 mb-2">Upload Your Movement</h4>
             <p className="text-gray-600 text-sm mb-4">
               Upload a video of yourself performing this movement
             </p>
-            <button className="px-6 py-3 bg-gray-900 text-white rounded-md hover:bg-gray-800 font-medium">
-              Record Video
-            </button>
+            <label className="cursor-pointer px-6 py-3 bg-gray-900 text-white rounded-md hover:bg-gray-800 font-medium inline-block">
+              Upload Video
+              <input type="file" accept="video/*" className="hidden" />
+            </label>
             <div className="mt-3 text-xs text-gray-500">
               Or drag and drop video file here
             </div>

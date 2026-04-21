@@ -1,11 +1,11 @@
 import Topbar from './Topbar'
 import Sidebar from './Sidebar'
 
-export default function MainLayout({ children, currentRole, onRoleChange, currentView, onViewChange }) {
+export default function MainLayout({ children, currentRole, currentView, onViewChange }) {
   return (
     <div className="h-screen flex flex-col">
       {/* Topbar */}
-      <Topbar currentRole={currentRole} onRoleChange={onRoleChange} />
+      <Topbar currentRole={currentRole} />
       
       {/* Main container with sidebar and content */}
       <div className="flex flex-1 overflow-hidden">
