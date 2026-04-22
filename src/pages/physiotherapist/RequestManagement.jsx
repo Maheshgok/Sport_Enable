@@ -1,11 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp } from 'firebase/firestore'
+import { db } from '../../firebase/config'
+import { useAuth } from '../../context/AuthContext'
 import Card from '../../components/common/Card'
 import Badge from '../../components/common/Badge'
 
 export default function RequestManagement() {
+  const { user, userProfile } = useAuth()
   const [activeTab, setActiveTab] = useState('submit') // 'submit' or 'my-requests'
   const [requestType, setRequestType] = useState('exercise') // 'exercise' or 'baseline'
-  const [myRequests, setMyRequests] = useState({ exerciseRequests: [], baselineRequests: [] })
+  const [myRequests, setMyRequests] = useState([])
   const [loading, setLoading] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
 
@@ -47,55 +51,31 @@ export default function RequestManagement() {
     e.preventDefault()
     setLoading(true)
     setSubmitSuccess(false)
-
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/physio/request-exercise`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          exerciseName: exerciseForm.exerciseName,
-          description: exerciseForm.description,
-          category: exerciseForm.category,
-          difficultyLevel: exerciseForm.difficultyLevel,
-          targetMuscles: exerciseForm.targetMuscles.split(',').map(s => s.trim()).filter(Boolean),
-          targetJoints: exerciseForm.targetJoints.split(',').map(s => s.trim()).filter(Boolean),
-          injuryTypes: exerciseForm.injuryTypes.split(',').map(s => s.trim()).filter(Boolean),
-          instructions: exerciseForm.instructions,
-          precautions: exerciseForm.precautions,
-          durationMinutes: parseInt(exerciseForm.durationMinutes),
-          equipmentNeeded: exerciseForm.equipmentNeeded.split(',').map(s => s.trim()).filter(Boolean),
-          reason: exerciseForm.reason,
-          useCase: exerciseForm.useCase
-        })
+      await addDoc(collection(db, 'physio_requests'), {
+        type: 'exercise',
+        status: 'pending',
+        requesterUid: user?.uid,
+        requesterName: userProfile?.displayName || user?.displayName,
+        requesterEmail: user?.email,
+        exerciseName: exerciseForm.exerciseName,
+        description: exerciseForm.description,
+        category: exerciseForm.category,
+        difficultyLevel: exerciseForm.difficultyLevel,
+        targetMuscles: exerciseForm.targetMuscles.split(',').map(s => s.trim()).filter(Boolean),
+        targetJoints: exerciseForm.targetJoints.split(',').map(s => s.trim()).filter(Boolean),
+        injuryTypes: exerciseForm.injuryTypes.split(',').map(s => s.trim()).filter(Boolean),
+        instructions: exerciseForm.instructions,
+        precautions: exerciseForm.precautions,
+        durationMinutes: parseInt(exerciseForm.durationMinutes),
+        equipmentNeeded: exerciseForm.equipmentNeeded.split(',').map(s => s.trim()).filter(Boolean),
+        reason: exerciseForm.reason,
+        useCase: exerciseForm.useCase,
+        createdAt: serverTimestamp(),
       })
-
-      if (response.ok) {
-        setSubmitSuccess(true)
-        // Reset form
-        setExerciseForm({
-          exerciseName: '',
-          description: '',
-          category: 'strength',
-          difficultyLevel: 'intermediate',
-          targetMuscles: '',
-          targetJoints: '',
-          injuryTypes: '',
-          instructions: '',
-          precautions: '',
-          durationMinutes: 10,
-          equipmentNeeded: '',
-          reason: '',
-          useCase: ''
-        })
-        setTimeout(() => setSubmitSuccess(false), 3000)
-      } else {
-        const error = await response.json()
-        alert(`Error: ${error.error}`)
-      }
+      setSubmitSuccess(true)
+      setExerciseForm({ exerciseName: '', description: '', category: 'strength', difficultyLevel: 'intermediate', targetMuscles: '', targetJoints: '', injuryTypes: '', instructions: '', precautions: '', durationMinutes: 10, equipmentNeeded: '', reason: '', useCase: '' })
+      setTimeout(() => setSubmitSuccess(false), 3000)
     } catch (error) {
       console.error('Error submitting request:', error)
       alert('Failed to submit request')
@@ -108,57 +88,31 @@ export default function RequestManagement() {
     e.preventDefault()
     setLoading(true)
     setSubmitSuccess(false)
-
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/physio/request-baseline`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          measurementName: baselineForm.measurementName,
-          measurementType: baselineForm.measurementType,
-          unit: baselineForm.unit,
-          sportId: parseInt(baselineForm.sportId),
-          sportName: baselineForm.sportName,
-          applicableConditions: baselineForm.applicableConditions.split(',').map(s => s.trim()).filter(Boolean),
-          normalRange: {
-            min: parseFloat(baselineForm.normalRangeMin) || 0,
-            max: parseFloat(baselineForm.normalRangeMax) || 0,
-            description: baselineForm.normalRangeDescription
-          },
-          testingProtocol: baselineForm.testingProtocol,
-          equipmentNeeded: baselineForm.equipmentNeeded.split(',').map(s => s.trim()).filter(Boolean),
-          reason: baselineForm.reason,
-          researchReferences: baselineForm.researchReferences.split(',').map(s => s.trim()).filter(Boolean)
-        })
+      await addDoc(collection(db, 'physio_requests'), {
+        type: 'baseline',
+        status: 'pending',
+        requesterUid: user?.uid,
+        requesterName: userProfile?.displayName || user?.displayName,
+        requesterEmail: user?.email,
+        measurementName: baselineForm.measurementName,
+        measurementType: baselineForm.measurementType,
+        unit: baselineForm.unit,
+        sportId: parseInt(baselineForm.sportId),
+        sportName: baselineForm.sportName,
+        applicableConditions: baselineForm.applicableConditions.split(',').map(s => s.trim()).filter(Boolean),
+        normalRangeMin: parseFloat(baselineForm.normalRangeMin) || 0,
+        normalRangeMax: parseFloat(baselineForm.normalRangeMax) || 0,
+        normalRangeDescription: baselineForm.normalRangeDescription,
+        testingProtocol: baselineForm.testingProtocol,
+        equipmentNeeded: baselineForm.equipmentNeeded.split(',').map(s => s.trim()).filter(Boolean),
+        reason: baselineForm.reason,
+        researchReferences: baselineForm.researchReferences.split(',').map(s => s.trim()).filter(Boolean),
+        createdAt: serverTimestamp(),
       })
-
-      if (response.ok) {
-        setSubmitSuccess(true)
-        // Reset form
-        setBaselineForm({
-          measurementName: '',
-          measurementType: 'functional',
-          unit: '',
-          sportId: 1,
-          sportName: 'Football',
-          applicableConditions: '',
-          normalRangeMin: '',
-          normalRangeMax: '',
-          normalRangeDescription: '',
-          testingProtocol: '',
-          equipmentNeeded: '',
-          reason: '',
-          researchReferences: ''
-        })
-        setTimeout(() => setSubmitSuccess(false), 3000)
-      } else {
-        const error = await response.json()
-        alert(`Error: ${error.error}`)
-      }
+      setSubmitSuccess(true)
+      setBaselineForm({ measurementName: '', measurementType: 'functional', unit: '', sportId: 1, sportName: 'Football', applicableConditions: '', normalRangeMin: '', normalRangeMax: '', normalRangeDescription: '', testingProtocol: '', equipmentNeeded: '', reason: '', researchReferences: '' })
+      setTimeout(() => setSubmitSuccess(false), 3000)
     } catch (error) {
       console.error('Error submitting request:', error)
       alert('Failed to submit request')
@@ -167,25 +121,16 @@ export default function RequestManagement() {
     }
   }
 
-  const fetchMyRequests = async () => {
-    setLoading(true)
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/physio/my-requests`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setMyRequests(data)
-      }
-    } catch (error) {
-      console.error('Error fetching requests:', error)
-    } finally {
-      setLoading(false)
-    }
+  const fetchMyRequests = () => {
+    if (!user) return
+    const q = query(
+      collection(db, 'physio_requests'),
+      where('requesterUid', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    )
+    return onSnapshot(q, (snap) => {
+      setMyRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
   }
 
   // Fetch requests when switching to my-requests tab
@@ -711,68 +656,31 @@ export default function RequestManagement() {
       {/* My Requests Tab */}
       {activeTab === 'my-requests' && (
         <div className="space-y-6">
-          {/* Exercise Requests */}
-          {myRequests.exerciseRequests.length > 0 && (
-            <Card title={`Exercise Requests (${myRequests.exerciseRequests.length})`}>
-              <div className="space-y-3">
-                {myRequests.exerciseRequests.map((req) => (
-                  <div key={req.requestId} className="p-4 border border-gray-200 rounded-lg">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h4 className="font-medium text-gray-900">{req.exerciseName}</h4>
-                          {getStatusBadge(req.status)}
-                        </div>
-                        <p className="text-sm text-gray-600 mb-1">{req.description}</p>
-                        <div className="text-xs text-gray-500">
-                          Category: {req.category} | Difficulty: {req.difficultyLevel} | 
-                          Submitted: {new Date(req.createdAt?.seconds * 1000 || Date.now()).toLocaleDateString()}
-                        </div>
-                        {req.reviewNotes && (
-                          <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-                            <span className="font-medium">Review Notes:</span> {req.reviewNotes}
-                          </div>
-                        )}
-                      </div>
+          {myRequests.length > 0 ? (
+            myRequests.map((req) => (
+              <Card key={req.id}>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{req.type}</span>
+                      <h4 className="font-medium text-gray-900">{req.exerciseName || req.measurementName || 'Untitled'}</h4>
+                      {getStatusBadge(req.status)}
                     </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Baseline Requests */}
-          {myRequests.baselineRequests.length > 0 && (
-            <Card title={`Baseline Measurement Requests (${myRequests.baselineRequests.length})`}>
-              <div className="space-y-3">
-                {myRequests.baselineRequests.map((req) => (
-                  <div key={req.requestId} className="p-4 border border-gray-200 rounded-lg">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h4 className="font-medium text-gray-900">{req.measurementName}</h4>
-                          {getStatusBadge(req.status)}
-                        </div>
-                        <div className="text-sm text-gray-600 mb-1">
-                          Type: {req.measurementType} | Unit: {req.unit} | Sport: {req.sportName}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Submitted: {new Date(req.createdAt?.seconds * 1000 || Date.now()).toLocaleDateString()}
-                        </div>
-                        {req.reviewNotes && (
-                          <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-                            <span className="font-medium">Review Notes:</span> {req.reviewNotes}
-                          </div>
-                        )}
-                      </div>
+                    {req.description && <p className="text-sm text-gray-600 mb-1">{req.description}</p>}
+                    <div className="text-xs text-gray-500">
+                      {req.category && `Category: ${req.category} | `}
+                      Submitted: {req.createdAt?.toDate ? req.createdAt.toDate().toLocaleDateString() : '—'}
                     </div>
+                    {req.adminNote && (
+                      <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                        <span className="font-medium">Admin Note:</span> {req.adminNote}
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {myRequests.exerciseRequests.length === 0 && myRequests.baselineRequests.length === 0 && (
+                </div>
+              </Card>
+            ))
+          ) : (
             <Card>
               <div className="text-center py-8 text-gray-500">
                 <div className="text-4xl mb-2">📝</div>

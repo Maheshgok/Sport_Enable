@@ -166,5 +166,32 @@ service cloud.firestore {
       allow read: if true; // Demo: public read
       allow write: if isAuthenticated();
     }
+
+    // ==============================================
+    // Auth & Onboarding (Moove app)
+    // ==============================================
+
+    // Users - own doc readable/writable, superadmin can read all
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || getUserRole() == 'superadmin');
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (request.auth.uid == userId || getUserRole() == 'superadmin');
+    }
+
+    // Superadmin seeds - only readable by authenticated users (for role bootstrapping)
+    match /superadmin_seeds/{seedId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only written via admin SDK / REST with service credentials
+    }
+
+    // Physio requests - physios write their own, superadmin reads/updates all
+    match /physio_requests/{requestId} {
+      allow read: if isAuthenticated() && (
+        resource.data.requesterUid == request.auth.uid ||
+        getUserRole() == 'superadmin'
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && getUserRole() == 'superadmin';
+    }
   }
 }
