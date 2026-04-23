@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../firebase/config'
 
 const AuthContext = createContext(null)
@@ -20,11 +20,10 @@ export function AuthProvider({ children }) {
           setUserProfile(docSnap.data())
         } else {
           // Check if this email has been pre-seeded as superadmin
-          const seedKey = firebaseUser.email?.replace(/[@.]/g, '_')
-          const seedRef = doc(db, 'superadmin_seeds', seedKey)
-          const seedSnap = await getDoc(seedRef)
-          if (seedSnap.exists()) {
-            const seedData = seedSnap.data()
+          const seedQuery = query(collection(db, 'superadmin_seeds'), where('email', '==', firebaseUser.email))
+          const seedSnap = await getDocs(seedQuery)
+          if (!seedSnap.empty) {
+            const seedData = seedSnap.docs[0].data()
             const profile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
