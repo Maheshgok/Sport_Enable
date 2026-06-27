@@ -49,7 +49,22 @@ is_super_user = auth.is_super_user
 setup_logging()
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+
+# Configure CORS to allow requests from specific origins
+cors_origins = [
+    "https://edgechurn.ai",
+    "https://www.edgechurn.ai",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173"
+]
+
+CORS(app, 
+     origins=cors_origins,
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     supports_credentials=True)
 
 # Configuration
 BUCKET_NAME = os.environ.get('GCS_BUCKET_NAME', 'video-analysis-storage')
