@@ -1,38 +1,29 @@
-# Use official Python runtime as base image
-FROM python:3.12-slim
-
-# Install system dependencies for OpenCV
-RUN apt-get update && apt-get install -y \
-    libgl1 \
-    libglib2.0-0 \
-    libxcb1 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    libgthread-2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
+# Cloud Run Dockerfile for Moove API
+FROM python:3.11-slim
 
 # Set working directory
-WORKDIR /workspace
+WORKDIR /app
 
-# Copy requirements file
-COPY requirements.txt .
+# Install only essential system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy minimal API requirements
+COPY api/requirements-minimal.txt .
 
-# Copy application code
+# Install Python dependencies (minimal, no CV/ML libraries)
+RUN pip install --no-cache-dir -r requirements-minimal.txt
+
+# Copy the Flask API application
 COPY api/ ./api/
-COPY video_annotation_tool.py .
-COPY analyze_movement.py .
 
-# Set environment variables
-ENV PORT=8080
-ENV PYTHONUNBUFFERED=1
-
-# Expose port
+# Expose port (Cloud Run uses 8080)
 EXPOSE 8080
 
-# Run the application
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 600 api.app_firestore:app
+# Set environment variables
+ENV FLASK_APP=api.app_firestore
+ENV PORT=8080
+
+# Run the Flask application with gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "api.app_firestore:app"]
