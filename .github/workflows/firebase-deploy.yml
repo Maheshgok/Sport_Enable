@@ -20,13 +20,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4.2.2
 
-      - name: Authenticate to Google Cloud (WIF - No token needed)
-        id: auth
+      - name: Authenticate to Google Cloud (WIF)
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/812016027146/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
           service_account: firebase-adminsdk-5ws4o@watch-mail-trial.iam.gserviceaccount.com
-          token_format: 'access_token'
+
+      - name: Setup gcloud CLI for Firebase
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: watch-mail-trial
 
       - name: Set up Node.js
         uses: actions/setup-node@v4.4.0
@@ -52,6 +55,4 @@ jobs:
         run: npm install -g firebase-tools
 
       - name: Deploy to Firebase Hosting
-        env:
-          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: firebase deploy --only hosting --project watch-mail-trial
