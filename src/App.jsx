@@ -10,6 +10,8 @@ import PhysiotherapistDashboard from './pages/physiotherapist/PhysiotherapistDas
 import CoachDashboard from './pages/coach/CoachDashboard'
 import CaretakerDashboard from './pages/caretaker/CaretakerDashboard'
 import VideoAnalysisTool from './pages/VideoAnalysisTool'
+import LandingPage from './pages/LandingPage'
+import { Routes, Route } from 'react-router-dom'
 
 function RejectedScreen() {
   const { logout, userProfile } = useAuth()
@@ -80,7 +82,7 @@ function MainApp() {
   )
 }
 
-function App() {
+function MooveApp() {
   const { user, userProfile, loading } = useAuth()
 
   if (loading) return <LoadingScreen />
@@ -92,6 +94,15 @@ function App() {
   if (userProfile.role === 'superadmin') return <SuperAdminDashboard />
 
   return <MainApp />
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/moove/*" element={<MooveApp />} />
+    </Routes>
+  )
 }
 
 export default App
