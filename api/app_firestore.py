@@ -25,8 +25,6 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, current_dir)
 sys.path.insert(0, parent_dir)
 
-from video_annotation_tool import VideoAnnotationTool
-
 # Import API modules - use absolute imports
 from api import auth
 from api import firestore_db as db
