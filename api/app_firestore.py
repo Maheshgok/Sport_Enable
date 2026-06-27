@@ -406,7 +406,7 @@ def get_pending_requests():
     return relationships.get_pending_requests()
 
 @app.route('/api/admin/relationship-requests/<request_id>/approve', methods=['POST'])
-def approve_request(request_id):
+def approve_relationship_request(request_id):
     """Approve a relationship change request (admin only)"""
     return relationships.approve_request(request_id)
 
