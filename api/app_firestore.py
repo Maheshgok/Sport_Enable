@@ -1,5 +1,5 @@
 """
-Flask API for Moove Platform
+Flask API for Moove Platformsuch other
 Provides REST endpoints for video processing, authentication, and relationship management
 Uses Firebase/Firestore for data storage (serverless deployment)
 """
@@ -27,19 +27,18 @@ sys.path.insert(0, parent_dir)
 
 from video_annotation_tool import VideoAnnotationTool
 
-# Import API modules with error handling
-try:
-    import auth
-    import firestore_db as db
-    import relationships_firestore as relationships
-    import physio_requests
-except ImportError as e:
-    print(f"Import error: {e}")
-    # Try importing with api. prefix
-    from api import auth
-    from api import firestore_db as db
-    from api import relationships_firestore as relationships
-    from api import physio_requests
+# Import API modules - use absolute imports
+from api import auth
+from api import firestore_db as db
+from api import relationships_firestore as relationships
+from api import physio_requests
+from api.v1_routes_flask import register_protocol_routes
+
+# Import error handling and validation modules
+from api.error_handler import error_response, success_response, handle_errors, APIError, setup_logging
+from api.validators import RegistrationValidator, LoginValidator
+from api.profile_service import ProfileService
+from api.schemas import REGISTER_SCHEMA, LOGIN_SCHEMA
 
 # Import auth functions
 hash_password = auth.hash_password
@@ -47,6 +46,9 @@ verify_password = auth.verify_password
 generate_token = auth.generate_token
 require_auth = auth.require_auth
 is_super_user = auth.is_super_user
+
+# Setup logging
+setup_logging()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -85,6 +87,19 @@ def allowed_file(filename):
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
+# ============================================
+# Register Sprint 1 & 2 Protocol Routes (v1)
+# ============================================
+try:
+    register_protocol_routes(app, db.db)
+    print("✓ Protocol v1 routes registered")
+except Exception as e:
+    print(f"⚠ Warning: Could not register protocol v1 routes: {e}")
+    import traceback
+    traceback.print_exc()
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -102,234 +117,235 @@ def health_check():
 # ============================================
 
 @app.route('/api/auth/register', methods=['POST'])
+@handle_errors
 def register():
     """
-    Register a new user
+    Register a new user account
     
-    Required fields:
-        - email, password, first_name, last_name
-        - roles: array of roles (athlete, coach, physiotherapist, parent)
+    POST /api/auth/register
     
-    Role-specific required fields:
-        - athlete: sport_id
-        - parent: guardian_type
+    Request body (JSON):
+        {
+            "email": "user@moove.com",
+            "password": "SecurePass123!",
+            "first_name": "John",
+            "last_name": "Doe",
+            "roles": ["athlete"],
+            "sport_id": "football",
+            "position": "Quarterback"
+        }
+    
+    Response (201):
+        {
+            "success": true,
+            "data": {
+                "user_id": "user_123",
+                "email": "user@moove.com",
+                "roles": ["athlete"],
+                "token": "jwt_token_here"
+            },
+            "message": "User registered successfully",
+            "timestamp": "2026-06-27T10:30:00"
+        }
+    
+    Error responses:
+        - 400: INVALID_FORMAT - Validation failed
+        - 409: EMAIL_ALREADY_REGISTERED - Email exists
+        - 500: PROFILE_CREATION_ERROR - Profile creation failed
     """
-    try:
-        data = request.get_json()
-        
-        # Validate required fields
-        required_fields = ['email', 'password', 'first_name', 'last_name', 'roles']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
-        
-        # Validate email format
-        email = data['email'].lower().strip()
-        if '@' not in email:
-            return jsonify({'error': 'Invalid email format'}), 400
-        
-        # Validate password strength
-        password = data['password']
-        if len(password) < 8:
-            return jsonify({'error': 'Password must be at least 8 characters'}), 400
-        
-        # Validate roles
-        valid_roles = ['athlete', 'physiotherapist', 'coach', 'parent', 'admin']
-        roles = data['roles']
-        if not isinstance(roles, list) or len(roles) == 0:
-            return jsonify({'error': 'At least one role is required'}), 400
-        
-        for role in roles:
-            if role not in valid_roles:
-                return jsonify({'error': f'Invalid role: {role}. Valid roles: {", ".join(valid_roles)}'}), 400
-        
-        # Validate role-specific requirements
-        if 'athlete' in roles and 'sport_id' not in data:
-            return jsonify({'error': 'sport_id is required for athletes'}), 400
-        
-        if 'parent' in roles and 'guardian_type' not in data:
-            return jsonify({'error': 'guardian_type is required for parents/guardians (parent, legal_guardian, manager, agent, family_member)'}), 400
-        
-        # Check if email already exists
-        existing_user = db.get_user_by_email(email)
-        if existing_user:
-            return jsonify({'error': 'Email already registered'}), 409
-        
-        # Hash password
-        password_hash = hash_password(password)
-        
-        # Create user in Firestore
-        user = db.create_user(
-            email=email,
-            password_hash=password_hash,
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            roles=roles
+    data = request.get_json()
+    
+    # Validate request data
+    is_valid, errors = RegistrationValidator.validate(data)
+    if not is_valid:
+        return error_response(
+            'INVALID_FORMAT',
+            f'{len(errors)} validation error(s)',
+            details={'errors': errors}
         )
-        
-        # Create role-specific profiles
-        profile_data = {}
-        
-        # Create athlete profile if needed
-        if 'athlete' in roles:
-            athlete_profile = db.create_athlete_profile(
-                user_id=user['id'],
-                sport_id=data['sport_id'],
-                sport_name=data.get('sport_name', data['sport_id']),
-                position=data.get('position'),
-                team=data.get('team'),
-                custom_baselines=data.get('custom_baselines')
-            )
-            profile_data['athlete_profile'] = {
-                'sport_id': data['sport_id'],
-                'position': data.get('position')
-            }
-        
-        # Create coach profile if needed
-        if 'coach' in roles:
-            coach_profile = db.create_coach_profile(
-                user_id=user['id'],
-                specialization=data.get('specialization'),
-                years_of_experience=data.get('years_of_experience')
-            )
-            profile_data['coach_profile'] = {
-                'specialization': data.get('specialization')
-            }
-        
-        # Create physiotherapist profile if needed
-        if 'physiotherapist' in roles:
-            physio_profile = db.create_physiotherapist_profile(
-                user_id=user['id'],
-                specialization=data.get('specialization'),
-                license_number=data.get('license_number')
-            )
-            profile_data['physiotherapist_profile'] = {
-                'license_number': data.get('license_number')
-            }
-        
-        # Create parent/guardian profile if needed
-        if 'parent' in roles:
-            guardian_profile = db.create_parent_guardian_profile(
-                user_id=user['id'],
-                guardian_type=data['guardian_type'],
-                relationship_to_athlete=data.get('relationship_to_athlete'),
-                permissions=data.get('permissions')
-            )
-            profile_data['guardian_profile'] = {
-                'guardian_type': data['guardian_type'],
-                'relationship_to_athlete': data.get('relationship_to_athlete')
-            }
-        
-        # Generate JWT token
-        token = generate_token(user['id'], user['email'], user['roles'])
-        
-        return jsonify({
-            'success': True,
-            'message': 'User registered successfully',
-            'token': token,
-            'user': {
-                'user_id': user['id'],
-                'email': user['email'],
-                'roles': user['roles'],
-                'first_name': user['firstName'],
-                'last_name': user['lastName'],
-                **profile_data  # Include any created profiles
-            }
-        }), 201
-        
+    
+    # Check if email already exists
+    email = data['email'].lower().strip()
+    existing_user = db.get_user_by_email(email)
+    if existing_user:
+        raise APIError(
+            'EMAIL_ALREADY_REGISTERED',
+            details={'email': email}
+        )
+    
+    # Hash password
+    password_hash = hash_password(data['password'])
+    
+    # Create user in Firestore
+    user = db.create_user(
+        email=email,
+        password_hash=password_hash,
+        first_name=data['first_name'],
+        last_name=data['last_name'],
+        roles=data['roles']
+    )
+    
+    # Create role-specific profiles
+    try:
+        profile_data = ProfileService.create_profiles_for_roles(
+            user['id'],
+            data['roles'],
+            data
+        )
     except Exception as e:
-        print(f"Registration error: {e}")
-        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
+        raise APIError('PROFILE_CREATION_ERROR', details={'error': str(e)})
+    
+    # Generate JWT token
+    token = generate_token(user['id'], user['email'], user['roles'])
+    
+    # Return success response
+    response_data = {
+        'user_id': user['id'],
+        'email': user['email'],
+        'roles': user['roles'],
+        'first_name': user['firstName'],
+        'last_name': user['lastName'],
+        'token': token,
+        **profile_data
+    }
+    
+    return success_response(
+        response_data,
+        message='User registered successfully',
+        status=201
+    )
 
 @app.route('/api/auth/login', methods=['POST'])
+@handle_errors
 def login():
     """
     Login user
     
-    Required fields:
-        - email, password
+    POST /api/auth/login
+    
+    Request body (JSON):
+        {
+            "email": "user@moove.com",
+            "password": "SecurePass123!"
+        }
+    
+    Response (200):
+        {
+            "success": true,
+            "data": {
+                "user_id": "user_123",
+                "email": "user@moove.com",
+                "roles": ["athlete"],
+                "token": "jwt_token_here"
+            },
+            "timestamp": "2026-06-27T10:30:00"
+        }
+    
+    Error responses:
+        - 400: INVALID_FORMAT - Validation failed
+        - 401: INVALID_CREDENTIALS - Invalid email/password
+        - 403: ACCOUNT_INACTIVE - Account not active
     """
-    try:
-        data = request.get_json()
-        
-        # Validate required fields
-        if 'email' not in data or 'password' not in data:
-            return jsonify({'error': 'Email and password are required'}), 400
-        
-        email = data['email'].lower().strip()
-        password = data['password']
-        
-        # Get user from Firestore
-        user = db.get_user_by_email(email)
-        
-        if not user:
-            return jsonify({'error': 'Invalid email or password'}), 401
-        
-        # Verify password
-        if not verify_password(password, user['passwordHash']):
-            return jsonify({'error': 'Invalid email or password'}), 401
-        
-        # Check if account is active
-        if user.get('status') != 'active':
-            return jsonify({'error': 'Account is not active'}), 403
-        
-        # Update last login timestamp
-        db.update_last_login(user['id'])
-        
-        # Generate JWT token
-        token = generate_token(user['id'], user['email'], user['roles'])
-        
-        return jsonify({
-            'success': True,
-            'token': token,
-            'user': {
-                'user_id': user['id'],
-                'email': user['email'],
-                'roles': user['roles'],
-                'first_name': user.get('firstName'),
-                'last_name': user.get('lastName')
-            }
-        }), 200
-        
-    except Exception as e:
-        print(f"Login error: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = request.get_json()
+    
+    # Validate request data
+    is_valid, errors = LoginValidator.validate(data)
+    if not is_valid:
+        return error_response(
+            'INVALID_FORMAT',
+            f'{len(errors)} validation error(s)',
+            details={'errors': errors}
+        )
+    
+    email = data['email'].lower().strip()
+    password = data['password']
+    
+    # Get user from Firestore
+    user = db.get_user_by_email(email)
+    
+    if not user:
+        raise APIError('INVALID_CREDENTIALS')
+    
+    # Verify password
+    if not verify_password(password, user['passwordHash']):
+        raise APIError('INVALID_CREDENTIALS')
+    
+    # Check if account is active
+    if user.get('status') != 'active':
+        raise APIError('ACCOUNT_INACTIVE')
+    
+    # Update last login timestamp
+    db.update_last_login(user['id'])
+    
+    # Generate JWT token
+    token = generate_token(user['id'], user['email'], user['roles'])
+    
+    response_data = {
+        'user_id': user['id'],
+        'email': user['email'],
+        'roles': user['roles'],
+        'first_name': user.get('firstName'),
+        'last_name': user.get('lastName'),
+        'token': token
+    }
+    
+    return success_response(response_data)
 
 @app.route('/api/auth/me', methods=['GET'])
 @require_auth()
+@handle_errors
 def get_current_user():
-    """Get current user profile"""
-    try:
-        current_user = request.current_user
-        user = db.get_user_by_id(current_user['user_id'])
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        # Get role-specific profiles
-        profiles = {}
-        
-        if 'athlete' in user['roles']:
-            athlete_profile = db.get_athlete_profile(user['id'])
-            if athlete_profile:
-                profiles['athlete_profile'] = athlete_profile
-        
-        return jsonify({
-            'success': True,
-            'user': {
-                'user_id': user['id'],
-                'email': user['email'],
-                'roles': user['roles'],
-                'first_name': user.get('firstName'),
-                'last_name': user.get('lastName'),
-                'status': user.get('status'),
-                **profiles
-            }
-        }), 200
-        
-    except Exception as e:
-        print(f"Error getting user: {e}")
-        return jsonify({'error': str(e)}), 500
+    """
+    Get current user profile
+    
+    GET /api/auth/me
+    
+    Headers:
+        Authorization: Bearer <token>
+    
+    Response (200):
+        {
+            "success": true,
+            "data": {
+                "user_id": "user_123",
+                "email": "user@moove.com",
+                "roles": ["athlete"],
+                "first_name": "John",
+                "last_name": "Doe",
+                "status": "active"
+            },
+            "timestamp": "2026-06-27T10:30:00"
+        }
+    
+    Error responses:
+        - 401: UNAUTHORIZED - No valid token
+        - 404: USER_NOT_FOUND - User doesn't exist
+    """
+    current_user = request.current_user
+    user = db.get_user_by_id(current_user['user_id'])
+    
+    if not user:
+        raise APIError('USER_NOT_FOUND')
+    
+    # Get role-specific profiles
+    profiles = {}
+    
+    if 'athlete' in user['roles']:
+        athlete_profile = db.get_athlete_profile(user['id'])
+        if athlete_profile:
+            profiles['athlete_profile'] = athlete_profile
+    
+    response_data = {
+        'user_id': user['id'],
+        'email': user['email'],
+        'roles': user['roles'],
+        'first_name': user.get('firstName'),
+        'last_name': user.get('lastName'),
+        'status': user.get('status'),
+        **profiles
+    }
+    
+    return success_response(response_data)
 
 # ============================================
 # RELATIONSHIP MANAGEMENT ENDPOINTS
