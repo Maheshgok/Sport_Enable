@@ -3,26 +3,102 @@
 ## Overview
 Firebase CI tokens expire every ~90 days. This document outlines an automated renewal strategy with manual backup steps.
 
-## ✅ Recommended: Automated Renewal Reminder
+## ✅ Recommended: Smart Multi-Channel Notifications
 
-We've set up a **GitHub Actions workflow** (`.github/workflows/firebase-token-renewal.yml`) that:
-- Runs monthly on the 1st of every month
-- Creates an issue if token renewal is needed
-- Sends Slack notification (if configured)
-- Provides clear instructions for renewal
+We've set up **advanced GitHub Actions workflows** with buffer times:
 
-**No manual setup needed** - just watch for the GitHub issue!
+### Workflow 1: Basic Monthly Check (Simple)
+- **File**: `.github/workflows/firebase-token-renewal.yml`
+- **Runs**: 1st of every month
+- **Alerts**: GitHub issue + optional Slack
+- **Best for**: Small teams with basic needs
+
+### Workflow 2: Smart Buffer-Based Alerts (Recommended)
+- **File**: `.github/workflows/firebase-token-smart-renewal.yml`
+- **Runs**: 1st and 15th of every month
+- **Calculates**: Days remaining before expiry
+- **Alert Levels**:
+  - ✅ **OK** (0-60 days): Silent, no action
+  - ℹ️ **INFO** (60-75 days): GitHub issue created
+  - ⚠️ **WARNING** (75-85 days): Slack + GitHub issue
+  - 🚨 **CRITICAL** (85+ days): **Email + Slack + GitHub issue**
+- **Best for**: Production teams wanting maximum visibility
+
+### Setup: Multi-Channel Notifications
+
+#### Option A: Email Alerts (Recommended for Critical)
+1. **Enable Email** (optional, for CRITICAL alerts only):
+   - Go: https://github.com/Maheshgok/Sport_Enable/settings/secrets/actions
+   - Add secret: `EMAIL_USERNAME` = your Gmail
+   - Add secret: `EMAIL_PASSWORD` = [Gmail app password](https://myaccount.google.com/apppasswords)
+   - Add secret: `ALERT_EMAIL` = your-email@edgechurn.ai
+
+#### Option B: Slack Notifications
+1. **Create Slack Webhook**:
+   - Go: https://api.slack.com/messaging/webhooks
+   - Create new app → "Create New App" → "From scratch"
+   - Name: "Firebase Alerts"
+   - Add to workspace
+   - Enable "Incoming Webhooks"
+   - Click "Add New Webhook to Workspace"
+   - Copy webhook URL
+
+2. **Add to GitHub Secrets**:
+   - Go: https://github.com/Maheshgok/Sport_Enable/settings/secrets/actions
+   - New secret: `SLACK_WEBHOOK_URL` = (paste webhook)
+
+#### Option C: GitHub Issues (Built-in - No Setup)
+- Automatic ✅
+- No configuration needed
+- Issues tracked in GitHub Projects
 
 ### Benefits
-✅ Automatic monthly checks
-✅ Creates tracking issue in GitHub
-✅ Slack notifications (optional)
-✅ Clear instructions provided
-✅ No manual calendar reminders needed
+✅ Multiple notification channels (GitHub + Slack + Email)
+✅ Buffer-based alerts (60/75/85 day marks)
+✅ Automatic expiration date calculation
+✅ CRITICAL alerts only via email (not spam)
+✅ Works completely automatically
+✅ No manual calendar reminders
 
 ---
 
-## 📋 Manual Renewal (When Needed)
+## � Advanced: Google Cloud Scheduler (Zero Maintenance)
+
+**For completely automated renewal without manual intervention:**
+
+This uses Google Cloud Scheduler + Cloud Functions to auto-generate tokens.
+
+### Requirements
+- GCP project access
+- Enable Cloud Scheduler + Cloud Functions APIs
+- Service account with appropriate permissions
+
+### Implementation
+1. Create Cloud Function that runs `firebase login:ci` programmatically
+2. Schedule it to run every 75 days
+3. Function commits new token to GitHub automatically
+4. No manual intervention ever needed
+
+**Status**: Can be implemented if you want zero-manual-touch solution. Currently blocked by organization policy on service account keys, but this approach bypasses that limitation.
+
+---
+
+## 📱 Option 4: External Services (IFTTT / Zapier)
+
+**For integrations with tools you already use:**
+
+### Setup (IFTTT Example)
+1. Go: https://ifttt.com
+2. Create applet: "If GitHub issue created with label 'firebase' then send email"
+3. Connect GitHub + Email services
+4. Receive email whenever renewal issue is created
+
+### Benefits
+✅ Works with your existing email/Slack/Teams
+✅ Centralized notifications
+✅ Integrates with calendars and reminders
+
+
 
 If the automated workflow alerts you or the deployment fails with auth error:
 
