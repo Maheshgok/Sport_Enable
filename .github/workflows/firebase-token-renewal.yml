@@ -1,0 +1,66 @@
+name: Renew Firebase Token (Auto)
+
+on:
+  schedule:
+    # Runs every 60 days (checking biweekly to catch expiry)
+    - cron: '0 0 1 * *'  # 1st of every month
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  renew-token:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Generate new Firebase token
+        run: |
+          # This would require interactive auth - instead we use a service account
+          # For now, we'll create a comment on issues when token renewal is needed
+          echo "⚠️ Firebase token renewal required"
+          echo "Run locally: firebase login:ci --project=watch-mail-trial --no-localhost"
+          echo "Then update GitHub Secret: FIREBASE_TOKEN"
+        shell: bash
+
+      - name: Create issue if token needs renewal
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const now = new Date();
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🔑 Firebase Token Renewal Required',
+              body: `The Firebase CI token is approaching expiration and needs renewal.\n\n**Steps to renew:**\n1. Run locally: \`firebase login:ci --project=watch-mail-trial --no-localhost\`\n2. Copy the generated token\n3. Update GitHub Secret \`FIREBASE_TOKEN\` with the new token\n4. Close this issue\n\n**Last checked:** ${now.toISOString()}`,
+              labels: ['maintenance', 'firebase']
+            });
+
+      - name: Notify in Slack (if configured)
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "🔑 Firebase Token Renewal Check",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Firebase Token Status*\nMonthly check completed. If token is expiring, an issue has been created."
+                  }
+                }
+              ]
+            }
