@@ -135,25 +135,35 @@ import os
 
 # Initialize Firebase Admin SDK
 if not firebase_admin._apps:
-    cred_path = os.environ.get('FIREBASE_CREDENTIALS_PATH', 'firebase-credentials.json')
-    if os.path.exists(cred_path):
-        cred = credentials.Certificate(cred_path)
-    else:
-        # For development - use environment variables
-        cred = credentials.Certificate({
-            "type": "service_account",
-            "project_id": os.environ.get('FIREBASE_PROJECT_ID', 'your-project-id'),
-            "private_key_id": os.environ.get('FIREBASE_PRIVATE_KEY_ID'),
-            "private_key": os.environ.get('FIREBASE_PRIVATE_KEY', '').replace('\\n', '\n'),
-            "client_email": os.environ.get('FIREBASE_CLIENT_EMAIL'),
-            "client_id": os.environ.get('FIREBASE_CLIENT_ID'),
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{os.environ.get('FIREBASE_CLIENT_EMAIL', '')}"
+    try:
+        # For Cloud Run: Use Application Default Credentials (built-in)
+        # For local: Requires GOOGLE_APPLICATION_CREDENTIALS env var
+        cred = credentials.ApplicationDefault()
+        firebase_admin.initialize_app(cred, {
+            'projectId': os.environ.get('FIREBASE_PROJECT_ID', 'watch-mail-trial')
         })
-
-    firebase_admin.initialize_app(cred)
+    except Exception as e:
+        # Fallback: Try loading from file or env variables
+        cred_path = os.environ.get('FIREBASE_CREDENTIALS_PATH', 'service-account-key.json')
+        if os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+        else:
+            # Last resort: Build from environment variables
+            cred_dict = {
+                "type": "service_account",
+                "project_id": os.environ.get('FIREBASE_PROJECT_ID', 'watch-mail-trial'),
+                "private_key_id": os.environ.get('FIREBASE_PRIVATE_KEY_ID'),
+                "private_key": os.environ.get('FIREBASE_PRIVATE_KEY', '').replace('\\n', '\n'),
+                "client_email": os.environ.get('FIREBASE_CLIENT_EMAIL'),
+                "client_id": os.environ.get('FIREBASE_CLIENT_ID'),
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{os.environ.get('FIREBASE_CLIENT_EMAIL', '')}"
+            }
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
 
 # Initialize Firestore
 db = firestore.client()
