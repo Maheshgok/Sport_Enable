@@ -1,0 +1,50 @@
+# GCP Cloud Build Configuration - FRONTEND ONLY
+# Automatically builds and deploys React/Vite app to Firebase Hosting
+# Triggered ONLY when changes to: src/, vite.config.js, tailwind.config.js, package.json, postcss.config.js
+
+steps:
+  # Step 1: Install Node dependencies
+  - name: 'node:18'
+    entrypoint: npm
+    args:
+      - 'ci'
+
+  # Step 2: Build React/Vite application
+  - name: 'node:18'
+    entrypoint: npm
+    args:
+      - 'run'
+      - 'build'
+
+  # Step 3: Deploy to Firebase Hosting
+  - name: 'gcr.io/cloud-builders/firebase'
+    args:
+      - 'deploy'
+      - '--project=$PROJECT_ID'
+      - '--only=hosting'
+      - '--token=$_FIREBASE_TOKEN'
+
+# Build timeout (20 minutes)
+timeout: '1200s'
+
+# Only build on push to main branch
+branches:
+  only:
+    - main
+
+# Substitutions
+substitutions:
+  _FIREBASE_TOKEN: ${FIREBASE_DEPLOY_TOKEN}  # Set this in GCP Cloud Build settings
+
+options:
+  machineType: 'N1_STANDARD_4'
+  logging: CLOUD_LOGGING_ONLY
+
+# IMPORTANT: In Cloud Build settings, configure trigger with includedFiles:
+# - src/**
+# - vite.config.js
+# - tailwind.config.js
+# - postcss.config.js
+# - package.json
+# - index.html
+# This ensures frontend only builds when frontend code changes
