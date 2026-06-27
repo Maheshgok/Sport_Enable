@@ -1,34 +1,30 @@
-# Cloud Run Dockerfile for Protocol Analysis Service
+# Cloud Run Dockerfile for Moove API
 
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install only essential system dependencies
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Copy minimal API requirements
+COPY api/requirements-minimal.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies (minimal, no CV/ML libraries)
+RUN pip install --no-cache-dir -r requirements-minimal.txt
 
-# Copy application code
-COPY main.py .
+# Copy the Flask API application
+COPY api/ ./api/
 
-# Download MediaPipe model (you might want to include this in the image)
-RUN mkdir -p /app/models
-
-# Expose port
+# Expose port (Cloud Run uses 8080)
 EXPOSE 8080
 
-# Run the application
-CMD ["python", "main.py"]
+# Set environment variables
+ENV FLASK_APP=api.app_firestore
+ENV PORT=8080
+
+# Run the Flask application with gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "api.app_firestore:app"]
