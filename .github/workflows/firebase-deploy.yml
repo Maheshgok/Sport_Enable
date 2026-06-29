@@ -18,11 +18,11 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v7
 
       - name: Authenticate to Google Cloud (WIF)
         id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/812016027146/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
           service_account: firebase-adminsdk-5ws4o@watch-mail-trial.iam.gserviceaccount.com
@@ -30,12 +30,12 @@ jobs:
           export_environment_variables: true
 
       - name: Setup gcloud CLI for Firebase
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v3
         with:
           project_id: watch-mail-trial
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4.4.0
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
