@@ -24,7 +24,7 @@
       {
         "source": "/LegalAnalysis/**",
         "run": {
-          "serviceId": "wp-res-frontend",
+          "serviceId": "wp-res-backend",
           "region": "us-central1"
         }
       },
