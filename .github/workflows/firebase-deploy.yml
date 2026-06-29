@@ -26,6 +26,7 @@ jobs:
         with:
           workload_identity_provider: projects/812016027146/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
           service_account: firebase-adminsdk-5ws4o@watch-mail-trial.iam.gserviceaccount.com
+          token_format: access_token
           create_credentials_file: true
           export_environment_variables: true
 
@@ -67,4 +68,4 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
           CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ steps.auth.outputs.credentials_file_path }}
-        run: firebase deploy --only hosting --project watch-mail-trial
+        run: firebase deploy --only hosting --project watch-mail-trial --token "${{ steps.auth.outputs.access_token }}"
