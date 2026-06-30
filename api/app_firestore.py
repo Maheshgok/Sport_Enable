@@ -4,7 +4,7 @@ Provides REST endpoints for video processing, authentication, and relationship m
 Uses Firebase/Firestore for data storage (serverless deployment)
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from google.cloud import storage
@@ -470,7 +470,75 @@ def get_request_details(request_id):
 # VIDEO ANALYSIS ENDPOINTS (Existing functionality)
 # ============================================
 
-# ... Keep existing video endpoints unchanged ...
+@app.route('/api/upload', methods=['POST', 'OPTIONS'])
+def upload_video():
+    """Upload front/side video files and athlete metadata to GCS."""
+    if request.method == 'OPTIONS':
+        return jsonify({'success': True}), 200
+
+    try:
+        if 'front_video' not in request.files:
+            return jsonify({'error': 'Front view video is required'}), 400
+
+        athlete_height = request.form.get('athlete_height')
+        if not athlete_height:
+            return jsonify({'error': 'Athlete height is required'}), 400
+
+        try:
+            athlete_height = float(athlete_height)
+            if athlete_height <= 0 or athlete_height > 300:
+                return jsonify({'error': 'Athlete height must be between 0 and 300 cm'}), 400
+        except ValueError:
+            return jsonify({'error': 'Invalid athlete height value'}), 400
+
+        front_file = request.files['front_video']
+        side_file = request.files.get('side_video')
+
+        if front_file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+
+        if not allowed_file(front_file.filename):
+            return jsonify({'error': f'File type not allowed. Allowed types: {", ".join(ALLOWED_EXTENSIONS)}'}), 400
+
+        if side_file and side_file.filename != '' and not allowed_file(side_file.filename):
+            return jsonify({'error': f'Side video type not allowed. Allowed types: {", ".join(ALLOWED_EXTENSIONS)}'}), 400
+
+        job_id = str(uuid.uuid4())
+        bucket = get_bucket()
+
+        front_filename = secure_filename(front_file.filename)
+        front_temp_path = os.path.join(UPLOAD_FOLDER, f'{job_id}_front_{front_filename}')
+        front_file.save(front_temp_path)
+
+        front_blob = bucket.blob(f'uploads/{job_id}/front_{front_filename}')
+        front_blob.upload_from_filename(front_temp_path)
+        os.remove(front_temp_path)
+
+        uploaded_files = {'front': f'front_{front_filename}'}
+
+        if side_file and side_file.filename != '':
+            side_filename = secure_filename(side_file.filename)
+            side_temp_path = os.path.join(UPLOAD_FOLDER, f'{job_id}_side_{side_filename}')
+            side_file.save(side_temp_path)
+
+            side_blob = bucket.blob(f'uploads/{job_id}/side_{side_filename}')
+            side_blob.upload_from_filename(side_temp_path)
+            os.remove(side_temp_path)
+
+            uploaded_files['side'] = f'side_{side_filename}'
+
+        metadata_blob = bucket.blob(f'uploads/{job_id}/metadata.txt')
+        metadata_blob.upload_from_string(f'athlete_height_cm={athlete_height}')
+
+        return jsonify({
+            'success': True,
+            'job_id': job_id,
+            'files': uploaded_files,
+            'athlete_height': athlete_height,
+            'message': 'Video(s) uploaded successfully. Use /api/process endpoint to start processing.'
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 # ============================================
 # ROOT REDIRECT
