@@ -99,7 +99,8 @@ function MooveApp() {
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<VideoAnalysisTool />} />
+      <Route path="/landing" element={<LandingPage />} />
       <Route path="/moove/*" element={<MooveApp />} />
     </Routes>
   )

@@ -49,6 +49,35 @@ const VideoAnalysisTool = () => {
     }
   };
 
+  const processJob = async (uploadedJobId) => {
+    try {
+      setStatus('processing');
+      setError(null);
+
+      const response = await fetch(`${API_BASE_URL}/api/process/${uploadedJobId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ trigger: 'auto' })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setStatus('completed');
+        fetchResults(uploadedJobId);
+      } else {
+        setError(data.error || 'Processing failed');
+        setStatus('error');
+      }
+
+    } catch (err) {
+      setError(err.message);
+      setStatus('error');
+    }
+  };
+
   const handleUpload = async () => {
     if (!frontVideo) {
       setError('Please upload at least the front view video');
@@ -87,8 +116,8 @@ const VideoAnalysisTool = () => {
         if (xhr.status === 200) {
           const response = JSON.parse(xhr.responseText);
           setJobId(response.job_id);
-          setStatus('uploaded');
           setUploadProgress(100);
+          processJob(response.job_id);
         } else {
           const error = JSON.parse(xhr.responseText);
           setError(error.error || 'Upload failed');
@@ -110,45 +139,18 @@ const VideoAnalysisTool = () => {
     }
   };
 
-  const handleProcess = async () => {
-    if (!jobId) return;
+  const fetchResults = async (targetJobId = jobId) => {
+    if (!targetJobId) return;
 
     try {
-      setStatus('processing');
-      setError(null);
-
-      const response = await fetch(`${API_BASE_URL}/api/process/${jobId}`, {
-        method: 'POST'
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setStatus('completed');
-        fetchResults();
-      } else {
-        setError(data.error || 'Processing failed');
-        setStatus('error');
-      }
-
-    } catch (err) {
-      setError(err.message);
-      setStatus('error');
-    }
-  };
-
-  const fetchResults = async () => {
-    if (!jobId) return;
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/results/${jobId}`);
+      const response = await fetch(`${API_BASE_URL}/api/results/${targetJobId}`);
       const data = await response.json();
 
       if (response.ok) {
         setResults(data.files);
         
         // Fetch additional analysis data
-        await fetchAnalysisData(data.files);
+        await fetchAnalysisData(data.files, targetJobId);
       } else {
         setError(data.error || 'Failed to fetch results');
       }
@@ -158,7 +160,7 @@ const VideoAnalysisTool = () => {
     }
   };
 
-  const fetchAnalysisData = async (files) => {
+  const fetchAnalysisData = async (files, targetJobId = jobId) => {
     if (!files || files.length === 0) return;
 
     try {
@@ -169,7 +171,7 @@ const VideoAnalysisTool = () => {
       // Fetch summary report
       if (summaryFile) {
         const summaryResponse = await fetch(
-          `${API_BASE_URL}/api/download/${jobId}/${summaryFile.filename}`
+          `${API_BASE_URL}/api/download/${targetJobId}/${summaryFile.filename}`
         );
         const summaryText = await summaryResponse.text();
         setSummaryReport(parseSummaryReport(summaryText));
@@ -178,7 +180,7 @@ const VideoAnalysisTool = () => {
       // Fetch movement data CSV
       if (movementFile) {
         const movementResponse = await fetch(
-          `${API_BASE_URL}/api/download/${jobId}/${movementFile.filename}`
+          `${API_BASE_URL}/api/download/${targetJobId}/${movementFile.filename}`
         );
         const csvText = await movementResponse.text();
         setMovementData(parseCSV(csvText));
@@ -186,7 +188,7 @@ const VideoAnalysisTool = () => {
 
       // Fetch analytics JSON with visualization info
       try {
-        const analyticsResponse = await fetch(`${API_BASE_URL}/api/analytics/${jobId}`);
+        const analyticsResponse = await fetch(`${API_BASE_URL}/api/analytics/${targetJobId}`);
         const analyticsData = await analyticsResponse.json();
         if (analyticsResponse.ok && analyticsData.success) {
           setAnalyticsData(analyticsData.analytics);
@@ -420,18 +422,8 @@ const VideoAnalysisTool = () => {
                   onClick={handleUpload}
                   className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                 >
-                  <Upload className="w-5 h-5" />
-                  Upload {sideVideo ? '2 Videos' : 'Video'}
-                </button>
-              )}
-
-              {status === 'uploaded' && (
-                <button
-                  onClick={handleProcess}
-                  className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                >
                   <Play className="w-5 h-5" />
-                  Process Video{sideVideo ? 's' : ''}
+                  Analyze {sideVideo ? '2 Videos' : 'Video'}
                 </button>
               )}
 
@@ -477,18 +469,6 @@ const VideoAnalysisTool = () => {
                 <div>
                   <p className="font-medium text-red-800">Error</p>
                   <p className="text-red-700 text-sm">{error}</p>
-                </div>
-              </div>
-            )}
-
-            {status === 'uploaded' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-blue-800">Video Uploaded</p>
-                  <p className="text-blue-700 text-sm">
-                    Click "Process Video" to start the analysis
-                  </p>
                 </div>
               </div>
             )}
