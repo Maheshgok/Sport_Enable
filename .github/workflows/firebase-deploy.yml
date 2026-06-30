@@ -68,4 +68,16 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
           CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ steps.auth.outputs.credentials_file_path }}
-        run: firebase deploy --only hosting --project watch-mail-trial --token "${{ steps.auth.outputs.access_token }}"
+        run: |
+          set +e
+          DEPLOY_OUTPUT=$(firebase deploy --only hosting --project watch-mail-trial --non-interactive 2>&1)
+          DEPLOY_EXIT_CODE=$?
+          echo "$DEPLOY_OUTPUT"
+
+          if [ $DEPLOY_EXIT_CODE -ne 0 ]; then
+            if echo "$DEPLOY_OUTPUT" | grep -Eq "supplied version .* is the current active version"; then
+              echo "Hosting release is already on the current active version; treating as successful no-op."
+              exit 0
+            fi
+            exit $DEPLOY_EXIT_CODE
+          fi
