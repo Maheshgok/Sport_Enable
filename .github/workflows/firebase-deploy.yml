@@ -70,7 +70,8 @@ jobs:
           CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ steps.auth.outputs.credentials_file_path }}
         run: |
           set +e
-          DEPLOY_OUTPUT=$(firebase deploy --only hosting --project watch-mail-trial --non-interactive 2>&1)
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          DEPLOY_OUTPUT=$(firebase deploy --only hosting --project watch-mail-trial --non-interactive --token "$ACCESS_TOKEN" 2>&1)
           DEPLOY_EXIT_CODE=$?
           echo "$DEPLOY_OUTPUT"
 
