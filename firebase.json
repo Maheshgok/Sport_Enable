@@ -22,10 +22,17 @@
     ],
     "rewrites": [
       {
+        "source": "/LegalAnalysis",
+        "run": {
+          "serviceId": "wp-res-frontend",
+          "region": "asia-south1"
+        }
+      },
+      {
         "source": "/LegalAnalysis/**",
         "run": {
-          "serviceId": "wp-res-backend",
-          "region": "us-central1"
+          "serviceId": "wp-res-frontend",
+          "region": "asia-south1"
         }
       },
       {
